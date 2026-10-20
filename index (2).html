@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Book an Appointment</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  body { font-family: 'Inter', system-ui, sans-serif; }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { scrollbar-width: none; }
+  .skeleton { background: linear-gradient(90deg,#e5e7eb 25%,#f3f4f6 50%,#e5e7eb 75%); background-size: 200% 100%; animation: shimmer 1.2s infinite; }
+  @keyframes shimmer { 0% { background-position: 200% 0 } 100% { background-position: -200% 0 } }
+  .fade-in { animation: fade .25s ease-out; }
+  @keyframes fade { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: none } }
+  @media print {
+    body * { visibility: hidden !important; }
+    #voucher, #voucher * { visibility: visible !important; }
+    #voucher { position: absolute; left: 0; top: 0; width: 100%; box-shadow: none !important; border: 1px solid #e5e7eb; }
+    .no-print { display: none !important; }
+  }
+</style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen">
+
+<!-- ======================= HEADER ======================= -->
+<header class="bg-white border-b border-slate-200 sticky top-0 z-30 no-print">
+  <div class="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
+    <div class="flex items-center gap-2.5">
+      <div class="w-9 h-9 rounded-xl bg-indigo-600 text-white grid place-items-center">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+      </div>
+      <span class="font-semibold text-lg tracking-tight">BookEasy</span>
+    </div>
+    <nav class="flex bg-slate-100 rounded-xl p-1 text-sm font-medium" role="tablist">
+      <button id="tab-book" role="tab" class="px-4 py-1.5 rounded-lg transition">Book Appointment</button>
+      <button id="tab-admin" role="tab" class="px-4 py-1.5 rounded-lg transition">Admin</button>
+    </nav>
+  </div>
+</header>
+
+<div id="demo-banner" class="hidden bg-amber-50 border-b border-amber-200 text-amber-900 text-sm no-print">
+  <div class="max-w-5xl mx-auto px-4 py-2.5">
+    <strong>Demo mode:</strong> no backend URL is set, so data is stored in this browser only. Set <code class="bg-amber-100 px-1 rounded">API_URL</code> in the script to connect Google Sheets. Demo admin password: <code class="bg-amber-100 px-1 rounded">admin123</code>.
+  </div>
+</div>
+
+<main class="max-w-5xl mx-auto px-4 py-8 sm:py-10">
+
+<!-- ======================= CUSTOMER VIEW ======================= -->
+<section id="view-book">
+
+  <!-- Booking form -->
+  <div id="book-form-wrap" class="fade-in">
+    <div class="mb-6">
+      <h1 class="text-2xl sm:text-3xl font-bold tracking-tight">Book your appointment</h1>
+      <p class="text-slate-500 mt-1">Pick a service, choose a time that suits you, and get your voucher instantly.</p>
+    </div>
+
+    <div id="form-error" class="hidden mb-5 rounded-xl border border-red-200 bg-red-50 text-red-700 px-4 py-3 text-sm font-medium" role="alert"></div>
+
+    <form id="book-form" novalidate class="bg-white rounded-2xl shadow-sm border border-slate-200 divide-y divide-slate-100">
+
+      <!-- Step 1 -->
+      <div class="p-5 sm:p-7">
+        <h2 class="font-semibold flex items-center gap-2 mb-4"><span class="w-6 h-6 rounded-full bg-indigo-600 text-white text-xs grid place-items-center">1</span> Your details</h2>
+        <div class="grid sm:grid-cols-2 gap-4">
+          <div class="sm:col-span-2">
+            <label for="f-name" class="block text-sm font-medium mb-1.5">Full name</label>
+            <input id="f-name" name="name" type="text" autocomplete="name" placeholder="Jane Doe" class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+            <p class="err text-xs text-red-600 mt-1 hidden" data-for="name"></p>
+          </div>
+          <div>
+            <label for="f-email" class="block text-sm font-medium mb-1.5">Email</label>
+            <input id="f-email" name="email" type="email" autocomplete="email" placeholder="jane@example.com" class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+            <p class="err text-xs text-red-600 mt-1 hidden" data-for="email"></p>
+          </div>
+          <div>
+            <label for="f-phone" class="block text-sm font-medium mb-1.5">Contact number</label>
+            <input id="f-phone" name="phone" type="tel" autocomplete="tel" placeholder="+92 300 1234567" class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+            <p class="err text-xs text-red-600 mt-1 hidden" data-for="phone"></p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 2 -->
+      <div class="p-5 sm:p-7">
+        <h2 class="font-semibold flex items-center gap-2 mb-4"><span class="w-6 h-6 rounded-full bg-indigo-600 text-white text-xs grid place-items-center">2</span> Service</h2>
+        <select id="f-service" name="service" class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+          <option value="">Select a service…</option>
+        </select>
+        <p class="err text-xs text-red-600 mt-1 hidden" data-for="service"></p>
+      </div>
+
+      <!-- Step 3 -->
+      <div class="p-5 sm:p-7">
+        <h2 class="font-semibold flex items-center gap-2 mb-4"><span class="w-6 h-6 rounded-full bg-indigo-600 text-white text-xs grid place-items-center">3</span> Date &amp; time</h2>
+
+        <div id="day-strip" class="flex gap-2 overflow-x-auto no-scrollbar pb-2 -mx-1 px-1" aria-label="Select a date"></div>
+        <p class="err text-xs text-red-600 mt-1 hidden" data-for="date"></p>
+
+        <div class="mt-5">
+          <div class="flex items-center justify-between mb-2.5">
+            <label class="text-sm font-medium">Available time slots</label>
+            <span id="slot-date-label" class="text-xs text-slate-500"></span>
+          </div>
+          <div id="slot-grid" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2.5">
+            <p class="col-span-full text-sm text-slate-400">Select a date to see available times.</p>
+          </div>
+          <div class="flex gap-4 text-xs text-slate-500 mt-3">
+            <span class="flex items-center gap-1.5"><i class="w-3 h-3 rounded bg-white border border-slate-300"></i> Available</span>
+            <span class="flex items-center gap-1.5"><i class="w-3 h-3 rounded bg-indigo-600"></i> Selected</span>
+            <span class="flex items-center gap-1.5"><i class="w-3 h-3 rounded bg-slate-100 border border-slate-200"></i> Unavailable</span>
+          </div>
+          <p class="err text-xs text-red-600 mt-2 hidden" data-for="time"></p>
+        </div>
+      </div>
+
+      <!-- Submit -->
+      <div class="p-5 sm:p-7 bg-slate-50/60 rounded-b-2xl">
+        <button id="submit-btn" type="submit" class="w-full sm:w-auto sm:min-w-[220px] inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-semibold px-6 py-3 transition disabled:opacity-60 disabled:cursor-not-allowed">
+          <svg id="submit-spin" class="hidden animate-spin w-5 h-5" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" class="opacity-25"/><path d="M4 12a8 8 0 018-8" stroke="currentColor" stroke-width="4" stroke-linecap="round"/></svg>
+          <span id="submit-label">Book Appointment</span>
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Success + Voucher -->
+  <div id="success-wrap" class="hidden fade-in max-w-xl mx-auto">
+    <div class="no-print text-center mb-6">
+      <div class="w-14 h-14 rounded-full bg-emerald-100 text-emerald-600 grid place-items-center mx-auto mb-3">
+        <svg class="w-7 h-7" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <h2 class="text-2xl font-bold">Your appointment has been booked successfully!</h2>
+      <p class="text-slate-500 mt-1 text-sm">Keep your voucher below. Please show it when you arrive.</p>
+    </div>
+
+    <div id="voucher" class="bg-white rounded-2xl shadow-md border border-slate-200 overflow-hidden">
+      <div class="bg-indigo-600 text-white px-6 py-5 flex items-center justify-between">
+        <div>
+          <p class="text-indigo-200 text-xs uppercase tracking-widest">Booking Voucher</p>
+          <p id="v-id" class="text-2xl font-bold mt-0.5 tracking-wide"></p>
+        </div>
+        <span id="v-status" class="text-xs font-semibold bg-white/20 rounded-full px-3 py-1"></span>
+      </div>
+      <dl class="px-6 py-5 grid grid-cols-2 gap-y-5 gap-x-4 text-sm">
+        <div class="col-span-2"><dt class="text-slate-400 text-xs uppercase tracking-wide">Customer name</dt><dd id="v-name" class="font-semibold text-base mt-0.5"></dd></div>
+        <div class="col-span-2"><dt class="text-slate-400 text-xs uppercase tracking-wide">Service</dt><dd id="v-service" class="font-semibold text-base mt-0.5"></dd></div>
+        <div><dt class="text-slate-400 text-xs uppercase tracking-wide">Date</dt><dd id="v-date" class="font-semibold mt-0.5"></dd></div>
+        <div><dt class="text-slate-400 text-xs uppercase tracking-wide">Time</dt><dd id="v-time" class="font-semibold mt-0.5"></dd></div>
+      </dl>
+      <div class="border-t border-dashed border-slate-300 mx-6"></div>
+      <p class="px-6 py-4 text-xs text-slate-400">Please arrive 10 minutes early. To reschedule or cancel, contact us quoting your booking ID.</p>
+    </div>
+
+    <div class="no-print flex flex-col sm:flex-row gap-3 mt-6">
+      <button id="btn-pdf" class="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-5 py-3 transition">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16" stroke-linecap="round" stroke-linejoin="round"/></svg> Download PDF
+      </button>
+      <button id="btn-print" class="flex-1 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 font-semibold px-5 py-3 transition">Print</button>
+      <button id="btn-new" class="flex-1 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 font-semibold px-5 py-3 transition">Book another</button>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= ADMIN VIEW ======================= -->
+<section id="view-admin" class="hidden">
+
+  <!-- Login -->
+  <div id="admin-login" class="max-w-sm mx-auto bg-white rounded-2xl shadow-sm border border-slate-200 p-6 fade-in">
+    <h1 class="text-xl font-bold">Admin sign in</h1>
+    <p class="text-sm text-slate-500 mt-1 mb-5">Enter the admin password to manage appointments.</p>
+    <form id="admin-login-form" class="space-y-3">
+      <input id="admin-pass" type="password" autocomplete="current-password" placeholder="Admin password" class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+      <p id="admin-login-err" class="hidden text-sm text-red-600"></p>
+      <button class="w-full rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 transition">Sign in</button>
+    </form>
+  </div>
+
+  <!-- Dashboard -->
+  <div id="admin-dash" class="hidden fade-in">
+    <div class="flex flex-wrap items-end justify-between gap-3 mb-5">
+      <div>
+        <h1 class="text-2xl font-bold tracking-tight">Appointments</h1>
+        <p class="text-slate-500 text-sm mt-0.5">Change a status and it syncs to the Google Sheet instantly.</p>
+      </div>
+      <div class="flex gap-2">
+        <button id="admin-refresh" class="rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-sm font-medium px-4 py-2 transition">Refresh</button>
+        <button id="admin-logout" class="rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-sm font-medium px-4 py-2 transition">Sign out</button>
+      </div>
+    </div>
+
+    <div id="admin-stats" class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5"></div>
+
+    <div class="flex flex-col sm:flex-row gap-3 mb-4">
+      <input id="admin-search" type="search" placeholder="Search by name, ID or service…" class="flex-1 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+      <select id="admin-filter" class="rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        <option value="">All statuses</option>
+        <option>Pending</option><option>Confirmed</option><option>Cancelled</option>
+      </select>
+    </div>
+
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-x-auto">
+      <table class="w-full text-sm min-w-[680px]">
+        <thead class="bg-slate-50 text-slate-500 text-xs uppercase tracking-wide">
+          <tr>
+            <th class="text-left font-semibold px-5 py-3">Booking ID</th>
+            <th class="text-left font-semibold px-5 py-3">Customer Name</th>
+            <th class="text-left font-semibold px-5 py-3">Service</th>
+            <th class="text-left font-semibold px-5 py-3">Date &amp; Time</th>
+            <th class="text-left font-semibold px-5 py-3">Status</th>
+          </tr>
+        </thead>
+        <tbody id="admin-rows" class="divide-y divide-slate-100"></tbody>
+      </table>
+      <p id="admin-empty" class="hidden text-center text-slate-400 py-10 text-sm">No appointments found.</p>
+    </div>
+  </div>
+</section>
+</main>
+
+<div id="toast" class="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 hidden px-4 py-2.5 rounded-xl text-sm font-medium shadow-lg no-print"></div>
+
+<script>
+/* =====================================================================
+   CONFIGURATION
+   Paste your deployed Apps Script Web App URL (ends with /exec) below.
+   Leave it empty to try the interface in local demo mode.
+   ===================================================================== */
+const API_URL = 'https://script.google.com/macros/s/AKfycbzp2Wz_9k_QJAG_kJ3kOJRt-eGeQuCIzy-YRofOSXgmnSj1US3Y0cVt6s4xknqh6myw/exec';
+
+const DEFAULT_CFG = {
+  services: ['Consultation', 'Haircut', 'Math Tutoring', 'Web Design'],
+  slots: ['09:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00','17:00'],
+  daysAhead: 45,
+  closedWeekdays: [0]
+};
+const SLOT_TAKEN_MSG = 'This time slot is already booked. Please book another time.';
+const DEMO = !API_URL;
+
+/* ------------------------------ helpers ------------------------------ */
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const pad = n => String(n).padStart(2, '0');
+const isoLocal = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const parseISO = s => { const [y,m,d] = s.split('-').map(Number); return new Date(y, m-1, d); };
+const addDays = (s, n) => { const d = parseISO(s); d.setDate(d.getDate()+n); return isoLocal(d); };
+const fmtDate = s => parseISO(s).toLocaleDateString('en-US', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+const fmtDateShort = s => parseISO(s).toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric', year:'numeric' });
+const fmtTime = t => { const [h,m] = t.split(':').map(Number); return `${h%12||12}:${pad(m)} ${h<12?'AM':'PM'}`; };
+
+let toastTimer;
+function toast(msg, type = 'ok') {
+  const el = $('#toast');
+  el.textContent = msg;
+  el.className = `fixed bottom-5 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-xl text-sm font-medium shadow-lg no-print ${type === 'ok' ? 'bg-slate-900 text-white' : 'bg-red-600 text-white'}`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.add('hidden'), 3200);
+}
+
+/* ------------------------------ backend ------------------------------ */
+async function apiGet(params) {
+  const res = await fetch(`${API_URL}?${new URLSearchParams(params)}`);
+  return res.json();
+}
+async function apiPost(payload) {
+  // text/plain avoids a CORS preflight, which Apps Script cannot answer
+  const res = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload) });
+  return res.json();
+}
+
+/* Local demo backend (mirrors the Apps Script responses) */
+const Mock = {
+  key: 'demo_bookings_v1',
+  read() { try { return JSON.parse(localStorage.getItem(this.key) || '[]'); } catch { return []; } },
+  write(v) { try { localStorage.setItem(this.key, JSON.stringify(v)); } catch {} },
+  async config() { return { success: true, ...DEFAULT_CFG, today: isoLocal(new Date()) }; },
+  async slots(date) {
+    const booked = this.read().filter(b => b.date === date && b.status !== 'Cancelled').map(b => b.time);
+    const now = new Date(), today = isoLocal(now), nowT = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+    const past = date < today ? DEFAULT_CFG.slots : date > today ? [] : DEFAULT_CFG.slots.filter(s => s <= nowT);
+    return { success: true, date, booked, past };
+  },
+  async book(b) {
+    const all = this.read();
+    if (all.some(x => x.date === b.date && x.time === b.time && x.status !== 'Cancelled'))
+      return { success: false, code: 'SLOT_TAKEN', error: SLOT_TAKEN_MSG };
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let id;
+    do { id = '#BK-' + Array.from({length:4}, () => chars[Math.floor(Math.random()*chars.length)]).join(''); } while (all.some(x => x.id === id));
+    const booking = { id, name: b.name, email: b.email, phone: b.phone, service: b.service, date: b.date, time: b.time, status: 'Pending', createdAt: new Date().toISOString() };
+    all.push(booking); this.write(all);
+    return { success: true, message: 'Your appointment has been booked successfully!', booking };
+  },
+  async list(key) {
+    if (key !== 'admin123') return { success: false, code: 'UNAUTHORIZED', error: 'Invalid admin password.' };
+    return { success: true, bookings: this.read().sort((a,b) => (a.date+a.time) < (b.date+b.time) ? -1 : 1) };
+  },
+  async setStatus(key, id, status) {
+    if (key !== 'admin123') return { success: false, code: 'UNAUTHORIZED', error: 'Invalid admin password.' };
+    const all = this.read(), t = all.find(x => x.id === id);
+    if (!t) return { success: false, error: 'Booking not found.' };
+    if (t.status === 'Cancelled' && status !== 'Cancelled' && all.some(x => x.id !== id && x.date === t.date && x.time === t.time && x.status !== 'Cancelled'))
+      return { success: false, code: 'SLOT_TAKEN', error: SLOT_TAKEN_MSG };
+    t.status = status; this.write(all);
+    return { success: true, id, status };
+  }
+};
+
+const Backend = {
+  config:    () => DEMO ? Mock.config()        : apiGet({ action: 'config' }),
+  slots:     d  => DEMO ? Mock.slots(d)        : apiGet({ action: 'slots', date: d }),
+  book:      b  => DEMO ? Mock.book(b)         : apiPost({ action: 'book', ...b }),
+  list:      k  => DEMO ? Mock.list(k)         : apiPost({ action: 'listBookings', key: k }),
+  setStatus: (k, id, s) => DEMO ? Mock.setStatus(k, id, s) : apiPost({ action: 'updateStatus', key: k, id, status: s })
+};
+
+/* ------------------------------ tabs ------------------------------ */
+function showTab(name) {
+  const book = name === 'book';
+  $('#view-book').classList.toggle('hidden', !book);
+  $('#view-admin').classList.toggle('hidden', book);
+  const on = 'bg-white shadow-sm text-indigo-700', off = 'text-slate-500 hover:text-slate-800';
+  $('#tab-book').className = `px-4 py-1.5 rounded-lg transition ${book ? on : off}`;
+  $('#tab-admin').className = `px-4 py-1.5 rounded-lg transition ${book ? off : on}`;
+  if (!book && adminKey) loadAdmin();
+}
+$('#tab-book').onclick = () => showTab('book');
+$('#tab-admin').onclick = () => showTab('admin');
+
+/* ============================ CUSTOMER VIEW ============================ */
+const state = { cfg: DEFAULT_CFG, today: isoLocal(new Date()), date: null, time: null, booked: [], past: [], slotReq: 0, submitting: false };
+
+async function initBooking() {
+  try {
+    const c = await Backend.config();
+    if (c && c.success) { state.cfg = { services: c.services, slots: c.slots, daysAhead: c.daysAhead, closedWeekdays: c.closedWeekdays }; state.today = c.today || state.today; }
+  } catch (e) { toast('Could not reach the server. Using default settings.', 'err'); }
+  $('#f-service').innerHTML = '<option value="">Select a service…</option>' + state.cfg.services.map(s => `<option>${esc(s)}</option>`).join('');
+  renderDays();
+}
+
+function renderDays() {
+  const strip = $('#day-strip'); strip.innerHTML = '';
+  for (let i = 0; i <= state.cfg.daysAhead; i++) {
+    const iso = addDays(state.today, i), d = parseISO(iso);
+    const closed = state.cfg.closedWeekdays.includes(d.getDay());
+    const sel = state.date === iso;
+    const b = document.createElement('button');
+    b.type = 'button'; b.dataset.date = iso; b.disabled = closed;
+    b.className = `shrink-0 w-[64px] rounded-xl border px-2 py-2.5 text-center transition ${
+      sel ? 'bg-indigo-600 border-indigo-600 text-white shadow-sm'
+          : closed ? 'bg-slate-50 border-slate-200 text-slate-300 cursor-not-allowed'
+          : 'bg-white border-slate-300 hover:border-indigo-400 hover:bg-indigo-50'}`;
+    b.innerHTML = `<div class="text-[11px] uppercase tracking-wide ${sel ? 'text-indigo-100' : 'text-slate-400'}">${d.toLocaleDateString('en-US',{weekday:'short'})}</div>
+      <div class="text-lg font-semibold leading-tight">${d.getDate()}</div>
+      <div class="text-[11px] ${sel ? 'text-indigo-100' : 'text-slate-400'}">${d.toLocaleDateString('en-US',{month:'short'})}</div>`;
+    if (!closed) b.onclick = () => selectDate(iso);
+    strip.appendChild(b);
+  }
+}
+
+async function selectDate(iso) {
+  state.date = iso; state.time = null; state.booked = []; state.past = [];
+  clearErr('date'); clearErr('time'); hideFormError();
+  renderDays();
+  $('#slot-date-label').textContent = fmtDate(iso);
+  await loadSlots();
+}
+
+async function loadSlots() {
+  const req = ++state.slotReq;
+  $('#slot-grid').innerHTML = Array.from({ length: state.cfg.slots.length }, () => '<div class="skeleton h-11 rounded-xl"></div>').join('');
+  try {
+    const r = await Backend.slots(state.date);
+    if (req !== state.slotReq) return; // a newer request superseded this one
+    if (!r.success) throw new Error(r.error || 'Failed to load slots');
+    state.booked = r.booked || []; state.past = r.past || [];
+  } catch (e) {
+    if (req !== state.slotReq) return;
+    $('#slot-grid').innerHTML = '<p class="col-span-full text-sm text-red-600">Could not load time slots. Please pick the date again or refresh.</p>';
+    return;
+  }
+  renderSlots();
+}
+
+function renderSlots() {
+  const grid = $('#slot-grid'); grid.innerHTML = '';
+  let free = 0;
+  state.cfg.slots.forEach(t => {
+    const taken = state.booked.includes(t), past = state.past.includes(t), off = taken || past, sel = state.time === t;
+    if (!off) free++;
+    const b = document.createElement('button');
+    b.type = 'button'; b.disabled = off; b.dataset.time = t;
+    b.title = taken ? 'Already booked' : past ? 'Time has passed' : '';
+    b.className = `rounded-xl border py-2.5 text-sm font-medium transition ${
+      sel ? 'bg-indigo-600 border-indigo-600 text-white shadow-sm'
+          : off ? 'bg-slate-100 border-slate-200 text-slate-400 line-through cursor-not-allowed'
+          : 'bg-white border-slate-300 hover:border-indigo-400 hover:bg-indigo-50'}`;
+    b.textContent = fmtTime(t);
+    if (!off) b.onclick = () => { state.time = t; clearErr('time'); hideFormError(); renderSlots(); };
+    grid.appendChild(b);
+  });
+  if (!free) {
+    const p = document.createElement('p');
+    p.className = 'col-span-full text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2';
+    p.textContent = 'No slots left on this date. Please choose another day.';
+    grid.prepend(p);
+  }
+}
+
+/* validation */
+function setErr(field, msg) { const el = $(`.err[data-for="${field}"]`); el.textContent = msg; el.classList.remove('hidden'); const inp = $(`[name="${field}"]`); if (inp) inp.classList.add('border-red-400'); }
+function clearErr(field) { const el = $(`.err[data-for="${field}"]`); if (el) el.classList.add('hidden'); const inp = $(`[name="${field}"]`); if (inp) inp.classList.remove('border-red-400'); }
+function showFormError(msg) { const el = $('#form-error'); el.textContent = msg; el.classList.remove('hidden'); el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+function hideFormError() { $('#form-error').classList.add('hidden'); }
+
+['name','email','phone','service'].forEach(f => {
+  const el = $(`[name="${f}"]`); el.addEventListener('input', () => clearErr(f)); el.addEventListener('change', () => clearErr(f));
+});
+
+function validate() {
+  const v = { name: $('#f-name').value.trim(), email: $('#f-email').value.trim(), phone: $('#f-phone').value.trim(), service: $('#f-service').value, date: state.date, time: state.time };
+  let ok = true, first = null;
+  const bad = (f, m) => { setErr(f, m); ok = false; first = first || f; };
+  if (v.name.length < 2) bad('name', 'Please enter your full name.');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.email)) bad('email', 'Please enter a valid email address.');
+  if (!/^\+?[\d\s\-()]{7,20}$/.test(v.phone)) bad('phone', 'Enter a valid number (7–20 digits, may start with +).');
+  if (!v.service) bad('service', 'Please select a service.');
+  if (!v.date) bad('date', 'Please choose a date.');
+  else if (!v.time) bad('time', 'Please choose a time slot.');
+  if (!ok) { const t = $(`[name="${first}"]`) || $(`.err[data-for="${first}"]`); t.scrollIntoView({ behavior: 'smooth', block: 'center' }); if (t.focus) t.focus({ preventScroll: true }); }
+  return ok ? v : null;
+}
+
+function setSubmitting(on) {
+  state.submitting = on;
+  $('#submit-btn').disabled = on;
+  $('#submit-spin').classList.toggle('hidden', !on);
+  $('#submit-label').textContent = on ? 'Booking…' : 'Book Appointment';
+}
+
+$('#book-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  if (state.submitting) return;
+  hideFormError();
+  const data = validate(); if (!data) return;
+  setSubmitting(true);
+  try {
+    const r = await Backend.book(data);
+    if (r.success) { showVoucher(r.booking); return; }
+    if (r.code === 'SLOT_TAKEN') {
+      showFormError(SLOT_TAKEN_MSG);
+      state.time = null; await loadSlots();
+    } else {
+      showFormError(r.error || 'Something went wrong. Please try again.');
+    }
+  } catch (err) {
+    showFormError('Network error. Please check your connection and try again.');
+  } finally { setSubmitting(false); }
+});
+
+/* voucher */
+let lastBooking = null;
+function showVoucher(b) {
+  lastBooking = b;
+  $('#v-id').textContent = b.id; $('#v-name').textContent = b.name; $('#v-service').textContent = b.service;
+  $('#v-date').textContent = fmtDate(b.date); $('#v-time').textContent = fmtTime(b.time);
+  $('#v-status').textContent = b.status || 'Pending';
+  $('#book-form-wrap').classList.add('hidden'); $('#success-wrap').classList.remove('hidden');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+$('#btn-print').onclick = () => window.print();
+$('#btn-new').onclick = () => {
+  $('#book-form').reset(); state.date = null; state.time = null; state.booked = []; state.past = [];
+  $('#slot-grid').innerHTML = '<p class="col-span-full text-sm text-slate-400">Select a date to see available times.</p>';
+  $('#slot-date-label').textContent = '';
+  $$('.err').forEach(e => e.classList.add('hidden'));
+  renderDays();
+  $('#success-wrap').classList.add('hidden'); $('#book-form-wrap').classList.remove('hidden');
+};
+$('#btn-pdf').onclick = () => {
+  const b = lastBooking; if (!b) return;
+  if (!window.jspdf) { toast('PDF library not loaded — opening print dialog instead.', 'err'); window.print(); return; }
+  const doc = new window.jspdf.jsPDF({ unit: 'mm', format: 'a5' });
+  const W = doc.internal.pageSize.getWidth();
+  doc.setFillColor(79, 70, 229); doc.rect(0, 0, W, 42, 'F');
+  doc.setTextColor(199, 210, 254); doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
+  doc.text('BOOKING VOUCHER', 14, 16);
+  doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(22);
+  doc.text(b.id, 14, 29);
+  doc.setFontSize(10); doc.text((b.status || 'Pending').toUpperCase(), W - 14, 29, { align: 'right' });
+  const rows = [['CUSTOMER NAME', b.name], ['SERVICE', b.service], ['DATE', fmtDate(b.date)], ['TIME', fmtTime(b.time)]];
+  let y = 62;
+  rows.forEach(([k, v]) => {
+    doc.setTextColor(148, 163, 184); doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.text(k, 14, y);
+    doc.setTextColor(30, 41, 59); doc.setFont('helvetica', 'bold'); doc.setFontSize(13);
+    doc.text(doc.splitTextToSize(String(v), W - 28), 14, y + 7);
+    y += 22;
+  });
+  doc.setDrawColor(203, 213, 225); doc.setLineDashPattern([2, 2], 0); doc.line(14, y, W - 14, y);
+  doc.setTextColor(148, 163, 184); doc.setFont('helvetica', 'normal'); doc.setFontSize(8);
+  doc.text('Please arrive 10 minutes early and show this voucher at the desk.', 14, y + 9);
+  doc.save(`Voucher-${b.id.replace('#', '')}.pdf`);
+};
+
+/* ============================ ADMIN VIEW ============================ */
+let adminKey = sessionStorage.getItem('adminKey') || '';
+let allRows = [];
+const STATUS_STYLE = {
+  Pending:   'bg-amber-50 text-amber-800 border-amber-200',
+  Confirmed: 'bg-emerald-50 text-emerald-800 border-emerald-200',
+  Cancelled: 'bg-red-50 text-red-700 border-red-200'
+};
+
+$('#admin-login-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const key = $('#admin-pass').value, err = $('#admin-login-err'); err.classList.add('hidden');
+  const btn = e.submitter || $('#admin-login-form button'); btn.disabled = true;
+  try {
+    const r = await Backend.list(key);
+    if (!r.success) { err.textContent = r.error || 'Sign-in failed.'; err.classList.remove('hidden'); return; }
+    adminKey = key; sessionStorage.setItem('adminKey', key); $('#admin-pass').value = '';
+    renderAdmin(r.bookings);
+  } catch { err.textContent = 'Network error. Please try again.'; err.classList.remove('hidden'); }
+  finally { btn.disabled = false; }
+});
+
+async function loadAdmin() {
+  $('#admin-refresh').disabled = true;
+  try {
+    const r = await Backend.list(adminKey);
+    if (!r.success) {
+      if (r.code === 'UNAUTHORIZED') { logout(); toast('Session expired. Please sign in again.', 'err'); }
+      else toast(r.error || 'Failed to load bookings.', 'err');
+      return;
+    }
+    renderAdmin(r.bookings);
+  } catch { toast('Network error while loading bookings.', 'err'); }
+  finally { $('#admin-refresh').disabled = false; }
+}
+
+function renderAdmin(rows) {
+  allRows = rows;
+  $('#admin-login').classList.add('hidden'); $('#admin-dash').classList.remove('hidden');
+  const count = s => rows.filter(r => r.status === s).length;
+  $('#admin-stats').innerHTML = [['Total', rows.length, 'text-slate-900'], ['Pending', count('Pending'), 'text-amber-600'], ['Confirmed', count('Confirmed'), 'text-emerald-600'], ['Cancelled', count('Cancelled'), 'text-red-600']]
+    .map(([l, n, c]) => `<div class="bg-white rounded-2xl border border-slate-200 px-4 py-3"><p class="text-xs text-slate-500">${l}</p><p class="text-2xl font-bold ${c}">${n}</p></div>`).join('');
+  drawRows();
+}
+
+function drawRows() {
+  const q = $('#admin-search').value.trim().toLowerCase(), f = $('#admin-filter').value;
+  const rows = allRows.filter(r => (!f || r.status === f) && (!q || [r.id, r.name, r.service].join(' ').toLowerCase().includes(q)));
+  $('#admin-empty').classList.toggle('hidden', rows.length > 0);
+  $('#admin-rows').innerHTML = rows.map(r => `
+    <tr class="hover:bg-slate-50/70">
+      <td class="px-5 py-3.5 font-mono font-medium text-indigo-700 whitespace-nowrap">${esc(r.id)}</td>
+      <td class="px-5 py-3.5"><div class="font-medium">${esc(r.name)}</div><div class="text-xs text-slate-400">${esc(r.email)} · ${esc(r.phone)}</div></td>
+      <td class="px-5 py-3.5 whitespace-nowrap">${esc(r.service)}</td>
+      <td class="px-5 py-3.5 whitespace-nowrap">${esc(fmtDateShort(r.date))}<div class="text-xs text-slate-400">${esc(fmtTime(r.time))}</div></td>
+      <td class="px-5 py-3.5">
+        <select data-id="${esc(r.id)}" data-prev="${esc(r.status)}" class="status-sel rounded-lg border px-2.5 py-1.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 ${STATUS_STYLE[r.status] || ''}">
+          ${['Pending','Confirmed','Cancelled'].map(s => `<option ${s === r.status ? 'selected' : ''}>${s}</option>`).join('')}
+        </select>
+      </td>
+    </tr>`).join('');
+}
+
+$('#admin-rows').addEventListener('change', async e => {
+  const sel = e.target.closest('.status-sel'); if (!sel) return;
+  const id = sel.dataset.id, prev = sel.dataset.prev, status = sel.value;
+  sel.disabled = true;
+  try {
+    const r = await Backend.setStatus(adminKey, id, status);
+    if (!r.success) { sel.value = prev; toast(r.error || 'Update failed.', 'err'); if (r.code === 'UNAUTHORIZED') logout(); return; }
+    const row = allRows.find(x => x.id === id); if (row) row.status = status;
+    sel.dataset.prev = status; sel.className = sel.className.replace(/bg-\S+ text-\S+ border-(amber|emerald|red)-200/, STATUS_STYLE[status]);
+    renderAdmin(allRows);
+    toast(`${id} marked ${status}`);
+  } catch { sel.value = prev; toast('Network error. Status not changed.', 'err'); }
+  finally { sel.disabled = false; }
+});
+
+function logout() { adminKey = ''; sessionStorage.removeItem('adminKey'); $('#admin-dash').classList.add('hidden'); $('#admin-login').classList.remove('hidden'); }
+$('#admin-logout').onclick = logout;
+$('#admin-refresh').onclick = loadAdmin;
+$('#admin-search').addEventListener('input', drawRows);
+$('#admin-filter').addEventListener('change', drawRows);
+
+/* ------------------------------ boot ------------------------------ */
+if (DEMO) $('#demo-banner').classList.remove('hidden');
+showTab('book');
+initBooking();
+</script>
+</body>
+</html>
