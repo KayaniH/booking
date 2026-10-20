@@ -260,18 +260,25 @@ function toast(msg, type = 'ok') {
   el.textContent = msg;
   el.className = `fixed bottom-5 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-xl text-sm font-medium shadow-lg no-print ${type === 'ok' ? 'bg-slate-900 text-white' : 'bg-red-600 text-white'}`;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.add('hidden'), 3200);
+  toastTimer = setTimeout(() => el.classList.add('hidden'), 7000);
 }
 
 /* ------------------------------ backend ------------------------------ */
+async function parseApi(res) {
+  const text = await res.text();
+  try { return JSON.parse(text); }
+  catch { throw new Error(/accounts\.google|sign.?in|ServiceLogin/i.test(text)
+    ? 'ACCESS: the Apps Script deployment is not set to "Anyone".'
+    : 'BAD_RESPONSE: the Apps Script returned an error page instead of data. Check Executions in Apps Script.'); }
+}
 async function apiGet(params) {
   const res = await fetch(`${API_URL}?${new URLSearchParams(params)}`);
-  return res.json();
+  return parseApi(res);
 }
 async function apiPost(payload) {
   // text/plain avoids a CORS preflight, which Apps Script cannot answer
   const res = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload) });
-  return res.json();
+  return parseApi(res);
 }
 
 /* Local demo backend (mirrors the Apps Script responses) */
@@ -339,7 +346,10 @@ async function initBooking() {
   try {
     const c = await Backend.config();
     if (c && c.success) { state.cfg = { services: c.services, slots: c.slots, daysAhead: c.daysAhead, closedWeekdays: c.closedWeekdays }; state.today = c.today || state.today; }
-  } catch (e) { toast('Could not reach the server. Using default settings.', 'err'); }
+  } catch (e) {
+    console.error('Config load failed:', e);
+    toast(/^(ACCESS|BAD_RESPONSE)/.test(e.message) ? e.message : 'Could not reach the server (access not set to "Anyone", or wrong URL). Using default settings.', 'err');
+  }
   $('#f-service').innerHTML = '<option value="">Select a service…</option>' + state.cfg.services.map(s => `<option>${esc(s)}</option>`).join('');
   renderDays();
 }
